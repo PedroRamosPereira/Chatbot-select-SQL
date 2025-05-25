@@ -29,21 +29,14 @@ cursor = conn.cursor()
 colunas_desejadas = ["PRODUTO","DESCRICAO","QUANTIDADE","VENDA_BRUTA","DESCONTO_AUTOMATICO","DESCONTO_CONCEDIDO","IMPOSTOS","PLUCRO_BRUTO","PRECO_MEDIO","CUSTO_MEDIO"]
 
 #Rentabilidade
-def tratar_data(data):
-    dia, mes, ano = data.split('/')
-    return(ano+mes+dia)
-
-def gerar_rentabilidade(inic, fim, loja):
-    inic = tratar_data(inic)
-    fim = tratar_data(fim)
-    
-    if(consultar_rentabilidade(inic, fim, loja)):
+def gerarRentabilidade(inic, fim, loja):  
+    if(consultarRentabilidade(inic, fim, loja)):
         csv_para_xlsx(f"data/rentabilidade_{loja}_{inic}_{fim}.csv", f"data/rentabilidade_{loja}_{inic}_{fim}.xlsx", colunas_desejadas)
-        return (f"rentabilidade_{loja}_{inic}_{fim}.xlsx")
+        return (f"data/rentabilidade_{loja}_{inic}_{fim}.xlsx")
     else:
         return (False)
 
-def consultar_rentabilidade(periodo_inicial, periodo_final, loja):
+def consultarRentabilidade(periodo_inicial, periodo_final, loja):
     
     # Conectar ao banco
     conn = pyodbc.connect(connectionString)
@@ -208,7 +201,7 @@ def csv_para_xlsx(caminho_csv, caminho_xlsx, colunas_desejadas):
 
 #Notas sem recebimento
 
-def verificar_mes():
+def verificarMes():
     dia, mes, ano = data_atual.day, data_atual.month, data_atual.year
     if(dia - 2 < 1):
         mes -= 1
@@ -228,33 +221,22 @@ def verificar_mes():
     
     return(init, final)
 
-def get_lojas(usuario, tipo):
+def getLojas(usuario):
     cursor = conn.cursor()
     cursor.execute(f"SELECT numero FROM lojas WHERE usuario = {usuario}")
     result = cursor.fetchall()
 
     lojas = [row[0] for row in result]
 
-    if(tipo == '1'):
-        dia, mes, ano = data_atual.day, data_atual.month, data_atual.year
-        inicial, final = verificar_mes()
-    else:
-        inicial = input("Digite a data inicial (DD/MM/AAAA): ")
-        final = input("Digite a data final (DD/MM/AAAA): ")
+    inicial, final = verificarMes()
 
-        dia, mes, ano = inicial.split('/')
-        inicial = f"{ano}{mes}{dia}"
-        dia, mes, ano = final.split('/')
-        final = f"{ano}{mes}{dia}"
-            
-
-    msg = "Segue as notas sem recebimento:\n"
+    msg = []
     for loja in lojas:
-        msg = msg + consultar_notas(inicial, final, loja)
+        msg.append(consultarNotas(inicial, final, loja))
     
     return(msg)
 
-def consultar_notas(periodo_inicial, periodo_final, loja):
+def consultarNotas(periodo_inicial, periodo_final, loja):
     
     print(f"{periodo_inicial} {periodo_final} {loja}")
     # Conectar ao banco
