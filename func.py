@@ -25,13 +25,10 @@ data_atual = datetime.datetime.now()
 conn = sqlite3.connect('lojas.db', check_same_thread=False)
 cursor = conn.cursor()
 
-#tabelas rentabilidade
-colunas_desejadas = ["PRODUTO","DESCRICAO","QUANTIDADE","VENDA_BRUTA","DESCONTO_AUTOMATICO","DESCONTO_CONCEDIDO","IMPOSTOS","PLUCRO_BRUTO","PRECO_MEDIO","CUSTO_MEDIO"]
-
 #Rentabilidade
 def gerarRentabilidade(inic, fim, loja):  
     if(consultarRentabilidade(inic, fim, loja)):
-        csv_para_xlsx(f"data/rentabilidade_{loja}_{inic}_{fim}.csv", f"data/rentabilidade_{loja}_{inic}_{fim}.xlsx", colunas_desejadas)
+        csv_para_xlsx(f"data/rentabilidade_{loja}_{inic}_{fim}.csv", f"data/rentabilidade_{loja}_{inic}_{fim}.xlsx")
         return (f"data/rentabilidade_{loja}_{inic}_{fim}.xlsx")
     else:
         return (False)
@@ -180,10 +177,12 @@ def consultarRentabilidade(periodo_inicial, periodo_final, loja):
     
     conn.close()
 
-def csv_para_xlsx(caminho_csv, caminho_xlsx, colunas_desejadas):
+def csv_para_xlsx(caminho_csv, caminho_xlsx):
     wb = Workbook()
     ws = wb.active
     ws.title = "Planilha1"
+
+    colunas_desejadas = ["PRODUTO","DESCRICAO","QUANTIDADE","VENDA_BRUTA","DESCONTO_AUTOMATICO","DESCONTO_CONCEDIDO","IMPOSTOS","PLUCRO_BRUTO","PRECO_MEDIO","CUSTO_MEDIO"]
 
     with open(caminho_csv, "r", encoding="utf-8") as arquivo_csv:
         leitor = csv.reader(arquivo_csv)
@@ -200,7 +199,6 @@ def csv_para_xlsx(caminho_csv, caminho_xlsx, colunas_desejadas):
     print(f"Arquivo salvo como: {caminho_xlsx}")
 
 #Notas sem recebimento
-
 def verificarMes():
     dia, mes, ano = data_atual.day, data_atual.month, data_atual.year
     if(dia - 2 < 1):
@@ -328,3 +326,134 @@ def consultarNotas(periodo_inicial, periodo_final, loja):
     conn.close()
 
     return(resposta)
+
+atualizar = []
+
+#Atualizar desconto
+def desconto(produto):
+    conn = sqlite3.connect('data/lojas.db')
+    cursor = conn.cursor()
+    cursor.execute('select grupo_preco, tipo_desconto from lojas')
+    rows = cursor.fetchall()
+    for row in rows: 
+        uso = uso_continuo_antconcepcional(produto)
+        if uso[0]:
+            desconto_usoContinuo(row[1], row[0], produto, uso[1])
+        else:
+            precoMaximo = getPrecomaximo(produto, row[0])
+            if precoMaximo is not None:
+                desconto(precoMaximo, row[1], row[0])
+            else:
+                print(f"PrecoMaximo not found for produto {produto} and grupoPreco {row[0]}")
+    aplicar(produto)
+
+def uso_continuo_antconcepcional(produto):
+    conn = pyodbc.connect(connectionString)
+    cursor = conn.cursor()
+    cursor = cursor.execute(f"SELECT grupo_produto, subgrupo_produto FROM produtos WHERE produto = {produto}")
+    row = cursor.fetchone()
+    ant = False
+    if (row[0] == 28 or row[1] == 6):
+        if (row[1] == 6):
+            ant = True
+        return (True, ant)
+
+def getPrecomaximo(produto, grupoPreco):
+    try:
+        with pyodbc.connect(connectionString) as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT preco_maximo FROM produtos_vendas WHERE produto = {produto} and grupo_preco = {grupoPreco}")
+            row = cursor.fetchone()
+            if row:
+                return row[0]
+            else:
+                conn.close()
+                return None
+    except pyodbc.Error as e:
+        print(f"Database error: {e}")
+        conn.close()
+        return None
+
+def desconto(precoMaximo, tipoDesconto, grupoPreco):
+    if (precoMaximo > 21):
+        if (tipoDesconto) == 1 or (tipoDesconto) == 2 or (tipoDesconto) == 4 or (tipoDesconto) == 8:
+            if (precoMaximo < 36):
+                atualizar.append([grupoPreco, 15])
+            elif (precoMaximo < 85):
+                atualizar.append([grupoPreco, 18])
+            elif (precoMaximo < 121):
+                atualizar.append([grupoPreco, 20])
+            else:
+                atualizar.append([grupoPreco, 22])
+        elif (tipoDesconto) == 3:
+            if (precoMaximo < 36):
+                atualizar.append([grupoPreco, 15])
+            elif (precoMaximo < 85):
+                atualizar.append([grupoPreco, 18])
+            else:
+                atualizar.append([grupoPreco, 20])
+        elif (tipoDesconto) == 5:
+            if (precoMaximo < 36):
+                atualizar.append([grupoPreco, 10])
+            elif (precoMaximo < 85):
+                atualizar.append([grupoPreco, 12])
+            elif (precoMaximo < 121):
+                atualizar.append([grupoPreco, 15])
+            else:
+                atualizar.append([grupoPreco, 20])
+        elif (tipoDesconto) == 6:
+            if (precoMaximo < 36):
+                atualizar.append([grupoPreco, 14])
+            elif (precoMaximo < 85):
+                atualizar.append([grupoPreco, 17])
+            elif (precoMaximo < 121):
+                atualizar.append([grupoPreco, 21])
+            else:
+                atualizar.append([grupoPreco, 25])
+        elif (tipoDesconto) == 7:
+            if (precoMaximo < 36):
+                atualizar.append([grupoPreco, 12])
+            elif (precoMaximo < 85):
+                atualizar.append([grupoPreco, 15])
+            elif (precoMaximo < 121):
+                atualizar.append([grupoPreco, 18])
+            else:
+                atualizar.append([grupoPreco, 22])
+    if (tipoDesconto == 9):
+        atualizar.append([grupoPreco, 5])
+    elif (tipoDesconto == 10):
+        atualizar.append([grupoPreco, 14])
+    elif (tipoDesconto == 11 or tipoDesconto == 12):
+        atualizar.append([grupoPreco, 15])
+    elif (tipoDesconto == 14):
+        atualizar.append([grupoPreco, 12])
+
+def desconto_usoContinuo(tipoDesconto, grupoPreco, antconcepcional):
+    if (tipoDesconto == 1):
+        atualizar.append([grupoPreco, 22])
+    elif (tipoDesconto == 2 or tipoDesconto == 6 or tipoDesconto == 7 or tipoDesconto == 13):
+        atualizar.append([grupoPreco, 25])
+    elif (tipoDesconto == 3):
+        if antconcepcional:
+            atualizar.append([grupoPreco, 22])
+        else:
+            atualizar.append([grupoPreco, 20])
+    elif (tipoDesconto == 4 or tipoDesconto == 8):
+        atualizar.append([grupoPreco, 18])
+    elif (tipoDesconto == 5 or tipoDesconto == 11):
+        atualizar.append([grupoPreco, 20])
+    elif (tipoDesconto == 9):
+        atualizar.append([grupoPreco, 5])
+    elif (tipoDesconto == 10 or tipoDesconto == 12 or tipoDesconto == 14):
+        atualizar.append([grupoPreco, 15])
+    elif (tipoDesconto == 15):
+        atualizar.append([grupoPreco, 26])
+
+def aplicar(produto):
+    conn = pyodbc.connect(connectionString)
+    cursor = conn.cursor()
+    for grupo in atualizar:
+        cursor = cursor.execute(f"UPDATE produtos_vendas SET desconto_padrao = {grupo[1]} where produto = {produto} and grupo_preco {grupo[0]}")
+    cursor.commit()
+    conn.close()
+    atualizar.clear()

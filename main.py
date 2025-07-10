@@ -3,7 +3,7 @@ import telebot
 import json
 import datetime
 
-from func import gerarRentabilidade, getLojas, consultarNotas
+from func import gerarRentabilidade, getLojas, consultarNotas, desconto
 
 conn = sqlite3.connect('lojas.db', check_same_thread=False)
 
@@ -143,5 +143,10 @@ def verificarSaida(texto, message):
 def tratar_data(data):
     dia, mes, ano = data.split('/')
     return(ano+mes+dia)
+
+@bot.menssage_handler(commands=['desconto'])
+def atualizarDesconto(message):
+    bot.reply_to(message, "Envie o codigo interno do produto: ")
+    bot.registre_next_step_handler(message, lambda msg: desconto(msg))
 
 bot.polling(none_stop=True)
